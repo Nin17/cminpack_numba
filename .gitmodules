@@ -1,0 +1,3 @@
+[submodule "cminpack"]
+	path = cminpack
+	url = https://github.com/devernay/cminpack.git
