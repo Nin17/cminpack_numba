@@ -1,3 +1,31 @@
+[build-system]
+requires = ["py-build-cmake~=0.1.8"]
+build-backend = "py_build_cmake.build"
+
+[project]
+name = 'cminpack_numba'
+version= '0.1.0'
+description = "Numba compatible wrapper of cminpack."
+readme = 'README.md'
+license = {file = 'LICENSE'}
+authors = [{name = 'Chris Ninham', email = 'christopher.ninham@creatis.insa-lyon.fr'},]
+dependencies = ['numba', ]
+
 [tool.black]
 line-length = 88
 
+[tool.py-build-cmake.module]
+directory = "."
+
+[tool.py-build-cmake.sdist]
+include = ["cminpack/CMakeLists.txt", "cminpack/*"]
+
+[tool.py-build-cmake.cmake]
+minimum_version = "3.17"
+build_type = "RelWithDebInfo"
+source_path = "cminpack"
+build_args = ["-j"]
+[tool.py-build-cmake.cmake.options]
+BUILD_SHARED_LIBS = "ON"
+USE_BLAS = "OFF" # TODO: Add blas support
+CMINPACK_LIB_INSTALL_DIR="cminpack_numba"
