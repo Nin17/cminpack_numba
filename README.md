@@ -4,7 +4,7 @@ A numba wrapper of cminpack.
 
 ## Installation
 
-Clone the repository and `cd` to the directory, then:
+Clone the repository and its submodules `git clone --recurse-submodules` and `cd` to the directory, then:
 
 ```shell
 pip install .
