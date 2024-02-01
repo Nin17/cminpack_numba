@@ -8,9 +8,9 @@ from ctypes.util import find_library
 
 import numpy as np
 from llvmlite import binding
-from numba import extending, njit, objmode, types
+from numba import extending, njit, types
 
-from .utils import ptr_from_val, val_from_ptr
+from .utils import ptr_from_val, val_from_ptr, get_extension_path
 
 __all__ = [
     "enorm",
@@ -40,7 +40,6 @@ __all__ = [
     # "lmstr_",
 ]
 
-
 def _check_dtype(args, dtype, error=True):
     if not all(i.dtype is dtype for i in args):
         if error:
@@ -61,20 +60,20 @@ def ensure_cminpack(dtype: str = "") -> None:
     ImportError
         _description_
     """
-    if find_library(f"cminpack{dtype}") is None:
+    if find_library(f"cminpack{dtype}") is None and get_extension_path(f"libcminpack{dtype}") is None:
         raise ImportError(f"cminpack{dtype} library not found")
 
 
 # Load double and single precision libraries
 try:
     ensure_cminpack()
-    binding.load_library_permanently(find_library("cminpack"))
+    binding.load_library_permanently(find_library("cminpack") or get_extension_path("libcminpack"))
 except ImportError:
     warnings.warn(
         "cminpack not found. Double precision functions unavailable.")
 try:
     ensure_cminpack("s")
-    binding.load_library_permanently(find_library("cminpacks"))
+    binding.load_library_permanently(find_library("cminpacks") or get_extension_path("libcminpacks"))
 except ImportError:
     warnings.warn(
         "cminpacks not found. Single precision functions unavailable.")
@@ -99,6 +98,19 @@ class Cminpack:
     # TODO lmdif
     # TODO lmder
     # TODO lmstr
+    
+    def __init__(self):
+        FAILED = 0
+        try:
+            ensure_cminpack()
+        except ImportError:
+            FAILED += 1
+        try:
+            ensure_cminpack("s")
+        except ImportError:
+            FAILED += 1
+        if FAILED == 2:
+            raise ImportError("cminpack not found. Double and single precision functions unavailable.")
 
     @staticmethod
     def enorm(dtype: types.Float) -> types.ExternalFunction:  # pylint: disable= C0116
@@ -169,7 +181,7 @@ class Cminpack:
         return types.ExternalFunction(f"{_cminpack_prefix[dtype]}hybrj1", sig)
 
     @staticmethod
-    def lmdif(dtype: types.Float) -> types.ExternalFunction:
+    def lmdif(dtype: types.Float) -> types.ExternalFunction:  # pylint: disable= C0116
         sig = types.int32(
             types.long_,  # fcn
             types.voidptr,  # *p / *udata
@@ -254,12 +266,12 @@ class Cminpack:
 
 
 def _enorm(n, x):
-    ...
+    raise NotImplementedError
 
 
 @extending.overload(_enorm)
 def _enorm_overload(n, x):
-    _enorm_cfunc = Cminpack.enorm(x.dtype)
+    _enorm_cfunc = Cminpack().enorm(x.dtype)
 
     def impl(n, x):
         assert x.ndim == 1
@@ -282,13 +294,13 @@ def enorm(x):
 
 
 def _hybrd1(fcn, n, x, fvec, tol, wa, lwa, udata):
-    ...
+    raise NotImplementedError
 
 
 @extending.overload(_hybrd1)
 def _hybrd1_overload(fcn, n, x, fvec, tol, wa, lwa, udata):
     _check_dtype((fvec, wa), x.dtype)
-    _hybrd1_cfunc = Cminpack.hybrd1(x.dtype)
+    _hybrd1_cfunc = Cminpack().hybrd1(x.dtype)
 
     @extending.register_jitable
     def impl(fcn, n, x, fvec, tol, wa, lwa, udata):
@@ -319,7 +331,8 @@ def _hybrd1_args(x):
 
 
 @njit
-def hybrd1(fcn, x, tol=1.49012e-8, udata=None):
+def hybrd1(fcn, x, tol=None, udata=None):
+    tol = 1.49012e-8 if tol is None else tol
     n, lwa, fvec, wa = _hybrd1_args(x)
     return _hybrd1(fcn, n, x.copy(), fvec, tol, wa, lwa, udata)
 
@@ -336,7 +349,7 @@ def _hybrd(fcn, n, x, fvec, xtol, maxfev, ml, mu, epsfcn, diag, mode, factor, np
 def _hybrd_overload(fcn, n, x, fvec, xtol, maxfev, ml, mu, epsfcn, diag, mode, factor,
                     nprint, nfev, fjac, ldfjac, r, lr, qtf, wa1, wa2, wa3, wa4, udata):
     _check_dtype((fvec, fjac, qtf, wa1, wa2, wa3, wa4), x.dtype)
-    _hybrd_cfunc = Cminpack.hybrd(x.dtype)
+    _hybrd_cfunc = Cminpack().hybrd(x.dtype)
 
     @extending.register_jitable
     def impl(fcn, n, x, fvec, xtol, maxfev, ml, mu, epsfcn, diag, mode, factor, nprint,
@@ -412,7 +425,7 @@ def _hybrj1(fcn, n, x, fvec, fjac, ldfjac, tol, wa, lwa, udata):
 @extending.overload(_hybrj1)
 def _hybrj1_overload(fcn, n, x, fvec, fjac, ldfjac, tol, wa, lwa, udata):
     _check_dtype((fvec, fjac, wa), x.dtype)
-    _hybrj1_cfunc = Cminpack.hybrj1(x.dtype)
+    _hybrj1_cfunc = Cminpack().hybrj1(x.dtype)
 
     @extending.register_jitable
     def impl(fcn, n, x, fvec, fjac, ldfjac, tol, wa, lwa, udata):
@@ -455,7 +468,8 @@ def _hybrj1_args(x):
 
 
 @njit
-def hybrj1(fcn, x, tol=1.49012e-8, udata=None):
+def hybrj1(fcn, x, tol=None, udata=None):
+    tol = 1.49012e-8 if tol is None else tol
     n, lwa, fvec, fjac, wa = _hybrj1_args(x)
     return _hybrj1(fcn, n, x.copy(), fvec, fjac, n, tol, wa, lwa, udata)
 
@@ -476,7 +490,7 @@ def _lmdif1(fcn, m, n, x, fvec, tol, iwa, wa, lwa, udata):
 @extending.overload(_lmdif1)
 def _lmdif1_overload(fcn, m, n, x, fvec, tol, iwa, wa, lwa, udata):
     _check_dtype((fvec, wa), x.dtype)
-    _lmdif1_cfunc = Cminpack.lmdif1(x.dtype)
+    _lmdif1_cfunc = Cminpack().lmdif1(x.dtype)
 
     @extending.register_jitable
     def impl(fcn, m, n, x, fvec, tol, iwa, wa, lwa, udata):
@@ -518,7 +532,8 @@ def _lmdif1_args(m, x):
 
 
 @njit
-def lmdif1(fcn, m, x, tol=1.49012e-8, udata=None):
+def lmdif1(fcn, m, x, tol=None, udata=None):
+    tol = 1.49012e-8 if tol is None else tol
     n, lwa, fvec, wa, iwa = _lmdif1_args(m, x)
     x0 = x.copy()
     info = _lmdif1(fcn, m, n, x0, fvec, tol, iwa, wa, lwa, udata)
@@ -540,7 +555,7 @@ def _lmdif1_overload(
     nprint, nfev, fjac, ldfjac, ipvt, qtf, wa1, wa2, wa3, wa4, udata
 ):
     _check_dtype((fvec, fjac, qtf, wa1, wa2, wa3, wa4), x.dtype)
-    _lmdif_cfunc = Cminpack.lmdif(x.dtype)
+    _lmdif_cfunc = Cminpack().lmdif(x.dtype)
 
     @extending.register_jitable
     def impl(
@@ -621,7 +636,7 @@ def _lmder1(fcn, m, n, x, fvec, fjac, ldfjac, tol, ipvt, wa, lwa, udata):
 @extending.overload(_lmder1)
 def _lmder1_overload(fcn, m, n, x, fvec, fjac, ldfjac, tol, ipvt, wa, lwa, udata):
     _check_dtype((fvec, fjac, wa), x.dtype)
-    _lmder1_cfunc = Cminpack.lmder1(x.dtype)
+    _lmder1_cfunc = Cminpack().lmder1(x.dtype)
 
     @extending.register_jitable
     def impl(fcn, m, n, x, fvec, fjac, ldfjac, tol, ipvt, wa, lwa, udata):
@@ -677,7 +692,8 @@ def _lmder1_args(m, x):
 
 
 @njit
-def lmder1(fcn, m, x, tol=1.49012e-8, udata=None):
+def lmder1(fcn, m, x, tol=None, udata=None):
+    tol = 1.49012e-8 if tol is None else tol
     n, lwa, fvec, fjac, wa, ipvt = _lmder1_args(m, x)
     return lmder1_(fcn, m, n, x.copy(), fvec, fjac, n, tol, ipvt, wa, lwa, udata)
 
@@ -698,7 +714,7 @@ def _lmstr1(fcn, m, n, x, fvec, fjac, ldfjac, tol, ipvt, wa, lwa, udata):
 @extending.overload
 def _lmstr1_overload(fcn, m, n, x, fvec, fjac, ldfjac, tol, ipvt, wa, lwa, udata):
     _check_dtype((fvec, fjac, wa), x.dtype)
-    _lmstr1_cfunc = Cminpack.lmstr1(x.dtype)
+    _lmstr1_cfunc = Cminpack().lmstr1(x.dtype)
 
     @extending.register_jitable
     def impl(fcn, m, n, x, fvec, fjac, ldfjac, tol, ipvt, wa, lwa, udata):
@@ -755,7 +771,8 @@ def _lmstr1_args(m, x):
 
 
 @njit
-def lmstr1(fcn, m, x, tol=1.49012e-8, udata=None):
+def lmstr1(fcn, m, x, tol=None, udata=None):
+    tol = 1.49012e-8 if tol is None else tol
     n, lwa, fvec, fjac, wa, ipvt = _lmstr1_args(m, x)
     return lmstr1_(fcn, m, n, x, fvec, fjac, n, tol, ipvt, wa, lwa, udata)
 

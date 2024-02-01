@@ -2,6 +2,7 @@
 """
 
 import ctypes as ct
+from pathlib import Path
 
 from numba import types
 from numba.core import cgutils
@@ -61,3 +62,15 @@ def check_cfunc(func, *args):
     _args = [_converter[j](i) for i, j in zip(args, _func.argtypes)]
 
     return _func(*_args)
+
+def get_extension_path(lib_name):
+    """
+    Modified from rocket-fft
+    """
+    search_path = Path(__file__).parent#.parent
+    ext_path = f"**/{lib_name}.*"
+    matches = search_path.glob(ext_path)
+    try:
+        return str(next(matches))
+    except StopIteration:
+        return None
