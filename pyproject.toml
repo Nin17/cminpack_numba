@@ -10,6 +10,7 @@ readme = 'README.md'
 license = {file = 'LICENSE'}
 authors = [{name = 'Chris Ninham', email = 'christopher.ninham@creatis.insa-lyon.fr'},]
 dependencies = ['numba', 'numpy'] # TODO(nin17): Add version of numba & numpy required
+requires-python = ">=3.10"
 
 [project.optional-dependencies]
 tests = ['pytest', 'pytest-benchmark', 'scipy', 'NumbaMinpack']
