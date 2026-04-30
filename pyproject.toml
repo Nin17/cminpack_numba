@@ -9,12 +9,17 @@ description = 'A numba compatible wrapper of cminpack.'
 readme = 'README.md'
 license = {file = 'LICENSE'}
 authors = [{name = 'Chris Ninham', email = 'christopher.ninham@creatis.insa-lyon.fr'},]
-dependencies = ['numba', 'numpy'] # TODO(nin17): Add version of numba & numpy required
+dependencies = [
+    "numba",
+    "numpy",
+] # TODO(nin17): Add version of numba & numpy required
 requires-python = ">=3.10"
 
-[project.optional-dependencies]
-tests = ['pytest', 'pytest-benchmark', 'scipy', 'NumbaMinpack']
-dev = ['ruff',]
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "scipy>=1.15.3",
+]
 
 [tool.ruff]
 line-length = 88
@@ -46,12 +51,12 @@ reportInvalidTypeForm = false
 directory = '.'
 
 [tool.py-build-cmake.sdist]
-include = ['cminpack/CMakeLists.txt', 'cminpack/*']
+include = ['subprojects/cminpack/CMakeLists.txt', 'subprojects/cminpack/*']
 
 [tool.py-build-cmake.cmake]
 minimum_version = '3.17'
 build_type = 'RelWithDebInfo'
-source_path = 'cminpack'
+source_path = 'subprojects/cminpack'
 build_args = ['-j']
 [tool.py-build-cmake.cmake.options]
 BUILD_SHARED_LIBS = 'ON'
